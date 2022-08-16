@@ -10,7 +10,7 @@ pub struct Storage<T: CryptoProvider + Copy> {
 }
 
 impl<T: CryptoProvider + Copy> Storage<T> {
-    /// Creates a new data storage with the given password, this does not read data from the file.
+    /// Creates an empty data storage.
     pub fn new(path: &str, provider: T) -> Result<Storage<T>, StorageError> {
         Ok(Storage {
             db: Database {
@@ -22,7 +22,7 @@ impl<T: CryptoProvider + Copy> Storage<T> {
         })
     }
 
-    /// Opens an existing storage with the given password.
+    /// Opens and reads an existing storage using the given password.
     pub fn open(path: &str, password: &str, provider: T) -> Result<Storage<T>, StorageError> {
         let content = std::fs::read_to_string(path)?;
 
@@ -36,7 +36,7 @@ impl<T: CryptoProvider + Copy> Storage<T> {
         })
     }
 
-    /// Saves and encrypts the database with the given password.
+    /// Encrypts the data storage and writes it to the filesystem using the given password.
     pub fn save(self, password: &str) -> Result<(), StorageError> {
         let mut file = OpenOptions::new()
             .write(true)
