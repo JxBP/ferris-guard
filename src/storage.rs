@@ -1,9 +1,7 @@
 use crate::{crypto::CryptoProvider, errors::StorageError};
 use serde::{Deserialize, Serialize};
-use std::{
-    fs::File,
-    io::{Read, Write},
-};
+use std::fs::OpenOptions;
+use std::io::Write;
 
 pub struct Storage<T: CryptoProvider + Copy> {
     pub db: Database,
@@ -12,7 +10,7 @@ pub struct Storage<T: CryptoProvider + Copy> {
 }
 
 impl<T: CryptoProvider + Copy> Storage<T> {
-    /// Creates a new data storage with the given password and opens it.
+    /// Creates a new data storage with the given password, this does not read data from the file.
     pub fn new(path: &str, provider: T) -> Result<Storage<T>, StorageError> {
         Ok(Storage {
             db: Database {
@@ -26,13 +24,10 @@ impl<T: CryptoProvider + Copy> Storage<T> {
 
     /// Opens an existing storage with the given password.
     pub fn open(path: &str, password: &str, provider: T) -> Result<Storage<T>, StorageError> {
-        let mut file = File::open(path)?;
-        let mut buf = Vec::with_capacity(file.metadata()?.len() as usize);
+        let content = std::fs::read_to_string(path)?;
 
-        file.read_to_end(&mut buf)?;
-
-        let raw_db = provider.decrypt(password, &buf);
-        let db = ron::from_str::<Database>(&String::from_utf8_lossy(&raw_db))?;
+        let raw_db = String::from_utf8(provider.decrypt(password, content.as_bytes()))?;
+        let db: Database = ron::from_str(&raw_db)?;
 
         Ok(Storage {
             db,
@@ -43,7 +38,11 @@ impl<T: CryptoProvider + Copy> Storage<T> {
 
     /// Saves and encrypts the database with the given password.
     pub fn save(self, password: &str) -> Result<(), StorageError> {
-        let mut file = File::create(self.path)?;
+        let mut file = OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .create(true)
+            .open(self.path)?;
         let serialized_db = ron::to_string(&self.db)?;
         file.write_all(&self.provider.encrypt(password, serialized_db.as_bytes()))?;
         Ok(())
