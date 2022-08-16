@@ -32,7 +32,7 @@ impl<T: CryptoProvider + Copy> Storage<T> {
         file.read_to_end(&mut buf)?;
 
         let raw_db = provider.decrypt(password, &buf);
-        let db = ron::from_str::<Database>(&String::from_utf8_lossy(&raw_db)).unwrap();
+        let db = ron::from_str::<Database>(&String::from_utf8_lossy(&raw_db))?;
 
         Ok(Storage {
             db,
@@ -42,9 +42,9 @@ impl<T: CryptoProvider + Copy> Storage<T> {
     }
 
     /// Saves and encrypts the database with the given password.
-    pub fn save(self, password: &str) -> std::io::Result<()> {
+    pub fn save(self, password: &str) -> Result<(), StorageError> {
         let mut file = File::create(self.path)?;
-        let serialized_db = ron::to_string(&self.db).unwrap();
+        let serialized_db = ron::to_string(&self.db)?;
         file.write_all(&self.provider.encrypt(password, serialized_db.as_bytes()))?;
         Ok(())
     }
