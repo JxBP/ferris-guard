@@ -1,9 +1,8 @@
-use aes_gcm::{Aes256Gcm, Nonce, KeyInit, aead::Aead};
-use argon2::{Argon2, PasswordHasher};
+use aes_gcm::{aead::Aead, Aes256Gcm, KeyInit, Nonce};
 use argon2::password_hash::Output;
+use argon2::{Argon2, PasswordHasher};
 
 const SALT: &str = "ThisIsMyEpicSalt";
-
 
 pub trait CryptoProvider {
     fn encrypt(self, password: &str, payload: &[u8]) -> Vec<u8>;
@@ -30,8 +29,8 @@ impl CryptoProvider for ArgonAESProvider {
 }
 
 fn hash_password(password: &str) -> Option<Output> {
-   Argon2::default()
-            .hash_password(password.as_bytes(), &SALT)
-            .unwrap()
-            .hash
+    Argon2::default()
+        .hash_password(password.as_bytes(), &SALT)
+        .unwrap()
+        .hash
 }
