@@ -1,50 +1,57 @@
 use crate::{crypto::CryptoProvider, errors::StorageError};
 use serde::{Deserialize, Serialize};
 use std::fs::OpenOptions;
-use std::io::Write;
+use std::io::{Read, Write};
 
 pub struct Storage<T: CryptoProvider + Copy> {
     pub db: Database,
-    path: String,
     provider: T,
 }
 
 impl<T: CryptoProvider + Copy> Storage<T> {
     /// Creates an empty data storage.
-    pub fn new(path: &str, provider: T) -> Result<Storage<T>, StorageError> {
+    pub fn new(provider: T) -> Result<Storage<T>, StorageError> {
         Ok(Storage {
             db: Database {
                 tags: vec![],
                 entries: vec![],
             },
-            path: path.to_string(),
             provider,
         })
     }
 
     /// Opens and reads an existing storage using the given password.
-    pub fn open(path: &str, password: &str, provider: T) -> Result<Storage<T>, StorageError> {
-        let content = std::fs::read_to_string(path)?;
+    pub fn open<R: Read>(
+        mut source: R,
+        password: &str,
+        provider: T,
+    ) -> Result<Storage<T>, StorageError> {
+        // Might add a parameter later to specify database size so we can specify the vector's
+        // capacity. E.g. if the function user knows the size by looking at file metadata.
+        let mut content = Vec::new();
+        source.read_to_end(&mut content)?;
 
-        let raw_db = String::from_utf8(provider.decrypt(password, content.as_bytes()))?;
+        let raw_db = String::from_utf8(provider.decrypt(password, &content))?;
         let db: Database = ron::from_str(&raw_db)?;
 
-        Ok(Storage {
-            db,
-            path: path.to_string(),
-            provider,
-        })
+        Ok(Storage { db, provider })
     }
 
     /// Encrypts the data storage and writes it to the filesystem using the given password.
-    pub fn save(self, password: &str) -> Result<(), StorageError> {
-        let mut file = OpenOptions::new()
+    pub fn save<W: Write>(self, mut out: W, password: &str) -> Result<(), StorageError> {
+        let serialized_db = ron::to_string(&self.db)?;
+        out.write_all(&self.provider.encrypt(password, serialized_db.as_bytes()))?;
+        Ok(())
+    }
+
+    pub fn save_to_file(self, path: &str, password: &str) -> Result<(), StorageError> {
+        let file = OpenOptions::new()
             .write(true)
             .truncate(true)
             .create(true)
-            .open(self.path)?;
-        let serialized_db = ron::to_string(&self.db)?;
-        file.write_all(&self.provider.encrypt(password, serialized_db.as_bytes()))?;
+            .open(path)?;
+
+        self.save(file, password)?;
         Ok(())
     }
 }
